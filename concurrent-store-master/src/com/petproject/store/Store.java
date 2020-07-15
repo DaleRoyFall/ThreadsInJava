@@ -11,6 +11,8 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.logging.Logger;
 
 public class Store {
@@ -23,10 +25,12 @@ public class Store {
     /**
      * Maximum buyer count
      */
-    int storeSize = 1000;
+    int storeSize = 100;
+    int sellersCounter = 1000;
 
     public void openStore() {
-        SellersService.inviteSellers(sellers, 100);
+        SellersService.inviteSellers(sellers, sellersCounter);
+        stall.setService(sellersCounter);
         BuyerService.inviteNewBuyers(buyers, storeSize);
         log.info("Store is open");
         startTrading();
