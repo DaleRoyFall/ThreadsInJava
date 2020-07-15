@@ -6,8 +6,7 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
@@ -16,39 +15,67 @@ public class Stall {
     Logger log;
     List<Seller> sellers;
     ExecutorService service;
+    List<Future<?>> futures;
     AtomicInteger servedBuyers = new AtomicInteger(0);
     StorePerformanceService performanceService = new StorePerformanceService();
 
     public Stall(Logger log, List<Seller> sellers) {
         this.log = log;
         this.sellers = sellers;
+
+        futures = new ArrayList<>();
     }
 
     public void setService(int size) {
         this.service = Executors.newFixedThreadPool(size);;
     }
 
-    public void trade(Queue<Buyer> buyers) {
+    public synchronized void trade(Queue<Buyer> buyers) {
         servedBuyers.set(0);
         performanceService.startServeBuyers();
 
-        int personSize = sellers.size() >  buyers.size() ? buyers.size() : sellers.size();
+        // Determine minimum number of person to trade
+        int personSize = Math.min(sellers.size(), buyers.size());
 
+        // Sellers do work here
         for (int i = 0; i < personSize; i++) {
             Seller seller = sellers.get(i);
 
-            service.submit(() -> {
+            // Get status of seller work
+            Future<?> sellerWorkStatus = service.submit(() -> {
                 seller.serveTheBuyer(buyers.poll());
                 servedBuyers.incrementAndGet();
             });
+
+            // Add status in list
+            futures.add(sellerWorkStatus);
         }
 
-        try {
-            Thread.currentThread().sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        if(checkStatus()) {
+            log.info(performanceService.checkPerformance(servedBuyers.get()));
+        } else {
+            log.info("Waiting for response");
+        }
+    }
+
+    private boolean checkStatus() {
+        // Wait for future response
+        for(Future<?> future : futures) {
+            try {
+                future.get();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (ExecutionException e) {
+                e.printStackTrace();
+            }
         }
 
-        log.info(performanceService.checkPerformance(servedBuyers.get()));
+        // Verify with AND operation
+        boolean finalStatus = true;
+        for(Future<?> future : futures){
+            finalStatus &= future.isDone();
+        }
+
+        return finalStatus;
     }
 }
