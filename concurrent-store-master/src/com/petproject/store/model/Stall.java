@@ -40,15 +40,18 @@ public class Stall {
         // Sellers do work here
         for (int i = 0; i < personSize; i++) {
             Seller seller = sellers.get(i);
+            Buyer buyer = buyers.poll();
 
             // Get status of seller work
-            Future<?> sellerWorkStatus = service.submit(() -> {
-                seller.serveTheBuyer(buyers.poll());
-                servedBuyers.incrementAndGet();
-            });
+            if(buyer != null) {
+                Future<?> sellerWorkStatus = service.submit(() -> {
+                    seller.serveTheBuyer(buyer);
+                    servedBuyers.incrementAndGet();
+                });
 
-            // Add status in list
-            futures.add(sellerWorkStatus);
+                // Add status in list
+                futures.add(sellerWorkStatus);
+            }
         }
 
         if(checkStatus()) {
@@ -59,6 +62,9 @@ public class Stall {
     }
 
     private boolean checkStatus() {
+        if (futures.isEmpty())
+            return true;
+
         // Wait for future response
         for(Future<?> future : futures) {
             try {
